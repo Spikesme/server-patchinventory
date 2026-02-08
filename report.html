@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Patch Inventory Report</title>
+  <style>
+    /* ---------- Fluent / Microsoft-ish Theme ---------- */
+    :root {
+      --bg-page: #F3F2F1;
+      --bg-card: #FFFFFF;
+      --border-soft: #E1DFDD;
+
+      --text-main: #323130;
+      --text-muted: #605E5C;
+
+      --ms-blue: #0078D4;
+      --ms-blue-hover: #106EBE;
+
+      --ms-green: #107C10;
+      --ms-yellow: #FFB900;
+      --ms-red: #D13438;
+      --ms-gray: #605E5C;
+
+      --row-red-bg: #FDE7E9;
+      --row-red-border: #D13438;
+    }
+
+    body.dark {
+      --bg-page: #0F0F10;
+      --bg-card: #1B1A19;
+      --border-soft: #323130;
+
+      --text-main: #F3F2F1;
+      --text-muted: #C8C6C4;
+
+      --ms-blue: #2899F5;
+      --ms-blue-hover: #3AA0F3;
+
+      --ms-green: #6BB700;
+      --ms-yellow: #FCE100;
+      --ms-red: #F1707B;
+      --ms-gray: #C8C6C4;
+
+      --row-red-bg: rgba(209, 52, 56, 0.22);
+      --row-red-border: rgba(241, 112, 123, 0.95);
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: var(--bg-page);
+      color: var(--text-main);
+      font-family: "Segoe UI", SegoeUI, system-ui, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+      font-size: 14px;
+    }
+
+    h2 { margin: 0 0 12px 0; font-weight: 600; }
+
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+    .spacer { flex: 1 1 auto; }
+
+    label { font-size: 12px; display:block; margin-bottom:6px; color: var(--text-muted); }
+
+    input, select {
+      padding: 8px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border-soft);
+      background: var(--bg-card);
+      color: var(--text-main);
+      min-width: 220px;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--ms-blue);
+      box-shadow: 0 0 0 1px var(--ms-blue);
+    }
+
+    button {
+      padding: 8px 14px;
+      border-radius: 4px;
+      border: 1px solid var(--border-soft);
+      background: var(--ms-blue);
+      color: #FFFFFF;
+      cursor: pointer;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    button:hover { background: var(--ms-blue-hover); }
+
+    .toggleBtn {
+      background: transparent !important;
+      color: var(--text-main) !important;
+      border: 1px solid var(--border-soft) !important;
+    }
+    .toggleBtn:hover { background: rgba(0,0,0,0.04) !important; }
+    body.dark .toggleBtn:hover { background: rgba(255,255,255,0.06) !important; }
+
+    .dangerBtn {
+      background: transparent !important;
+      color: var(--ms-red) !important;
+      border: 1px solid var(--border-soft) !important;
+    }
+    .dangerBtn:hover { background: rgba(209, 52, 56, 0.10) !important; }
+    body.dark .dangerBtn:hover { background: rgba(241, 112, 123, 0.14) !important; }
+
+    .muted { color: var(--text-muted); }
+    .small { font-size: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace; }
+    .right { text-align:right; }
+
+    .pill {
+      display:inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      border: 1px solid var(--border-soft);
+      font-size: 12px;
+      background: rgba(0,0,0,0.02);
+      color: var(--text-main);
+    }
+    body.dark .pill { background: rgba(255,255,255,0.04); }
+
+    .dot {
+      display:inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .g { background: var(--ms-green); }
+    .y { background: var(--ms-yellow); }
+    .r { background: var(--ms-red); }
+    .n { background: var(--ms-gray); }
+    .b { background: var(--ms-blue); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-soft);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-soft);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #FAF9F8;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      user-select: none;
+      cursor: pointer;
+    }
+    body.dark th { background: #252423; }
+
+    th .sort { margin-left: 6px; font-size: 11px; opacity: .7; }
+
+    tr.clickable:hover { background: rgba(0,0,0,0.03); cursor: pointer; }
+    body.dark tr.clickable:hover { background: rgba(255,255,255,0.04); }
+
+    /* Red row highlighting (LastSeen red OR KB missing when KB filter set) */
+    tr.row-red {
+      background: var(--row-red-bg) !important;
+      box-shadow: inset 3px 0 0 0 var(--row-red-border);
+    }
+    tr.row-red:hover {
+      background: var(--row-red-bg) !important;
+    }
+
+    /* Details */
+    .details { background: rgba(0,0,0,0.02); }
+    body.dark .details { background: rgba(255,255,255,0.03); }
+
+    .detailsWrap { display:flex; gap:16px; flex-wrap:wrap; padding:16px; }
+
+    .card {
+      border:1px solid var(--border-soft);
+      border-radius:6px;
+      padding:12px;
+      background: var(--bg-card);
+      min-width: 260px;
+    }
+    .grow { flex: 1 1 360px; }
+
+    .list {
+      max-height: 260px;
+      overflow: auto;
+      border: 1px solid var(--border-soft);
+      border-radius: 4px;
+      padding: 8px;
+      background: var(--bg-card);
+    }
+
+    .kb {
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding: 6px 8px;
+      border-bottom: 1px dashed var(--border-soft);
+    }
+    .kb:last-child { border-bottom: none; }
+
+    .quickbar {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top: 10px;
+    }
+
+    .kbd {
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace;
+      font-size: 12px;
+      padding: 1px 6px;
+      border: 1px solid var(--border-soft);
+      border-radius: 6px;
+      background: rgba(0,0,0,0.03);
+    }
+    body.dark .kbd { background: rgba(255,255,255,0.06); }
+  </style>
+</head>
+
+<body>
+  <h2>Patch Inventory Report</h2>
+
+  <div class="row">
+    <div>
+      <button id="pickFolderBtn">Ordner auswählen</button>
+      <button id="loadLastBtn" class="toggleBtn" title="Lädt den zuletzt erlaubten Ordner automatisch, falls gespeichert.">Letzten Ordner laden</button>
+      <div class="muted" style="margin-top:8px;">Ordner: <span id="folderName">–</span></div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="muted" style="align-self:center;">
+      Stand: <span id="generatedAt">–</span> • Datensätze: <span id="countAll">0</span> • Gefiltert: <span id="countFiltered">0</span>
+    </div>
+
+    <div>
+      <button id="themeBtn" class="toggleBtn">Dark Mode</button>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:14px;">
+    <div>
+      <label>Server-Filter (Name enthält)</label>
+      <input id="serverFilter" placeholder="z.B. server-001" />
+    </div>
+
+    <div>
+      <label>KB-Filter</label>
+      <input id="kbFilter" placeholder="z.B. KB5071547 oder 5071547" />
+    </div>
+
+    <div>
+      <label>Datei-Filter</label>
+      <input id="fileFilter" placeholder="z.B. _latest.json" value="_latest.json" />
+    </div>
+
+    <div>
+      <label>Filter: Last Seen Ampel</label>
+      <select id="seenFilter">
+        <option value="all" selected>Alle</option>
+        <option value="g">Nur Grün</option>
+        <option value="y">Nur Gelb</option>
+        <option value="r">Nur Rot</option>
+      </select>
+    </div>
+
+    <div>
+      <label>&nbsp;</label>
+      <button id="clearBtn">Zurücksetzen</button>
+    </div>
+
+    <div>
+      <label>&nbsp;</label>
+      <button id="exportBtn">CSV exportieren (Ansicht)</button>
+    </div>
+  </div>
+
+  <div class="quickbar">
+    <button id="qAll" class="toggleBtn">Alle</button>
+    <button id="qRed" class="dangerBtn">Nur Rot</button>
+    <button id="qYellow" class="toggleBtn">Nur Gelb</button>
+    <button id="qGreen" class="toggleBtn">Nur Grün</button>
+    <button id="qKbMissing" class="dangerBtn" title="Zeigt nur Server, bei denen die KB (oben) fehlt.">KB fehlt</button>
+    <span class="muted small" style="align-self:center;">
+      Sortierung: Klick auf <span class="kbd">Server</span>, <span class="kbd">Last Seen</span> oder <span class="kbd">#Hotfixes</span>.
+    </span>
+  </div>
+
+  <div class="muted small" style="margin-top:10px;">
+    Last Seen Ampel: 🟢 &lt; 2 Tage • 🟡 2–3 Tage • 🔴 &gt; 3 Tage • Klick auf eine Zeile öffnet die installierten Updates.
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th id="thServer" data-sort="server">Server <span class="sort" id="sServer"></span></th>
+        <th id="thSeen" data-sort="seen">Last Seen <span class="sort" id="sSeen"></span></th>
+        <th>OS</th>
+        <th>Build</th>
+        <th>KB Status</th>
+        <th id="thHotfix" data-sort="hotfix" class="right">#Hotfixes <span class="sort" id="sHotfix"></span></th>
+        <th>Last Reboot</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <script>
+    let DATA = [];
+    let expanded = new Set(); // computerName
+
+    // Sorting
+    let sortKey = "server";     // server | seen | hotfix
+    let sortDir = "asc";        // asc | desc
+
+    // Quick filters
+    let quickKbMissingOnly = false;
+
+    const elTbody = document.getElementById('tbody');
+    const elServer = document.getElementById('serverFilter');
+    const elKb = document.getElementById('kbFilter');
+    const elFile = document.getElementById('fileFilter');
+    const elSeenFilter = document.getElementById('seenFilter');
+    const elAll = document.getElementById('countAll');
+    const elFiltered = document.getElementById('countFiltered');
+    const elFolderName = document.getElementById('folderName');
+
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    function normKb(v){
+      if(!v) return '';
+      const s = String(v).trim();
+      const digits = s.replace(/[^0-9]/g,'');
+      if(!digits) return '';
+      return 'KB' + digits;
+    }
+
+    function escapeHtml(s){
+      return String(s ?? '')
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#039;");
+    }
+
+    function fmtDate(ts){
+      if(!ts) return '';
+      try { return new Date(ts).toLocaleString(); } catch { return ''; }
+    }
+
+    function fmtIsoString(iso){
+      if(!iso) return '–';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return String(iso);
+      return d.toLocaleString();
+    }
+
+    // Last Seen Ampel:
+    // grün < 2 Tage
+    // gelb 2–3 Tage
+    // rot  > 3 Tage
+    function seenColor(lastSeenMs){
+      if(!lastSeenMs) return 'n';
+      const ageDays = (Date.now() - lastSeenMs) / DAY_MS;
+      if (ageDays < 2) return 'g';
+      if (ageDays <= 3) return 'y';
+      return 'r';
+    }
+
+    function dotHtml(c){
+      const cls = c === 'g' ? 'g' : c === 'y' ? 'y' : c === 'r' ? 'r' : c === 'b' ? 'b' : 'n';
+      return `<span class="dot ${cls}"></span>`;
+    }
+
+    function updateSortBadges(){
+      const map = { server: "sServer", seen: "sSeen", hotfix: "sHotfix" };
+      Object.values(map).forEach(id => document.getElementById(id).textContent = "");
+      const arrow = sortDir === "asc" ? "▲" : "▼";
+      document.getElementById(map[sortKey]).textContent = arrow;
+    }
+
+    function buildDetailsRow(x, kbNorm){
+      const hotfixes = Array.isArray(x.hotfixes) ? x.hotfixes : [];
+      const installedOn = Array.isArray(x.hotfixDates) ? x.hotfixDates : [];
+      const osLine = [x.osCaption, x.osVersion].filter(Boolean).join(' • ');
+
+      const kbSearchId = `kbsearch_${x.computerName}`;
+      const listId = `kblist_${x.computerName}`;
+      const copyId = `copy_${x.computerName}`;
+
+      const kbItems = hotfixes.map((kb, idx) => {
+        const hit = kbNorm && normKb(kb) === kbNorm ? '<span class="pill">Match</span>' : '';
+        const date = installedOn[idx] ? `<span class="muted small">${escapeHtml(installedOn[idx])}</span>` : '';
+        return `<div class="kb"><span class="mono">${escapeHtml(kb)}</span><span>${hit} ${date}</span></div>`;
+      }).join('');
+
+      return `
+        <tr class="details">
+          <td colspan="7">
+            <div class="detailsWrap">
+              <div class="card">
+                <div style="font-weight:600; margin-bottom:10px;">Server Details</div>
+                <div class="small"><b>Name:</b> <span class="mono">${escapeHtml(x.computerName)}</span></div>
+                <div class="small"><b>Last Seen:</b> <span class="mono">${escapeHtml(fmtDate(x.lastSeenMs))}</span></div>
+                <div class="small"><b>Last Reboot:</b> <span class="mono">${escapeHtml(fmtIsoString(x.lastReboot))}</span></div>
+                <div class="small"><b>OS:</b> ${escapeHtml(osLine)}</div>
+                <div class="small"><b>Build:</b> <span class="mono">${escapeHtml(x.buildNumber)}</span></div>
+                <div class="small"><b>IP:</b> <span class="mono">${escapeHtml(x.ipAddress || "–")}</span></div>
+              </div>
+
+              <div class="card grow">
+                <div style="font-weight:600; margin-bottom:10px;">Installierte Updates (${hotfixes.length})</div>
+                <div class="row" style="margin-bottom:10px;">
+                  <div>
+                    <label>Suche in KBs</label>
+                    <input id="${kbSearchId}" placeholder="z.B. 5071547" style="min-width:260px;" />
+                  </div>
+                  <div>
+                    <label>&nbsp;</label>
+                    <button id="${copyId}" class="toggleBtn">KB-Liste kopieren</button>
+                  </div>
+                </div>
+                <div class="list" id="${listId}">
+                  ${kbItems || '<div class="muted">Keine Hotfixes gefunden.</div>'}
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+
+    function wireDetails(serverName){
+      const x = DATA.find(d => d.computerName === serverName);
+      if (!x) return;
+
+      const kbSearchId = `kbsearch_${x.computerName}`;
+      const listId = `kblist_${x.computerName}`;
+      const copyId = `copy_${x.computerName}`;
+
+      const kbSearch = document.getElementById(kbSearchId);
+      const listEl = document.getElementById(listId);
+      const copyBtn = document.getElementById(copyId);
+      if (!kbSearch || !listEl || !copyBtn) return;
+
+      kbSearch.addEventListener('input', () => {
+        const q = kbSearch.value.trim();
+        const qDigits = q.replace(/[^0-9]/g,'');
+        const children = Array.from(listEl.querySelectorAll('.kb'));
+        children.forEach(div => {
+          const text = div.textContent || '';
+          const ok = !q ? true : (text.includes(q) || (qDigits && text.includes(qDigits)));
+          div.style.display = ok ? '' : 'none';
+        });
+      }, { once: true });
+
+      copyBtn.addEventListener('click', async () => {
+        const hotfixes = Array.isArray(x.hotfixes) ? x.hotfixes : [];
+        const payload = hotfixes.join('\n');
+        try {
+          await navigator.clipboard.writeText(payload);
+          copyBtn.textContent = 'Kopiert ✔';
+          setTimeout(() => copyBtn.textContent = 'KB-Liste kopieren', 1200);
+        } catch (e) {
+          alert('Kopieren nicht erlaubt (Clipboard). Alternativ: markieren & kopieren.');
+        }
+      }, { once: true });
+    }
+
+    function applyFilters(){
+      const sFilter = elServer.value.trim().toLowerCase();
+      const kbNorm = normKb(elKb.value);
+      const seenPick = elSeenFilter.value;
+
+      let rows = DATA.filter(x => {
+        const name = (x.computerName || '').toLowerCase();
+        if (sFilter && !name.includes(sFilter)) return false;
+
+        if (seenPick !== 'all') {
+          const c = seenColor(x.lastSeenMs);
+          if (c !== seenPick) return false;
+        }
+
+        if (kbNorm) {
+          const hotfixes = Array.isArray(x.hotfixes) ? x.hotfixes : [];
+          const hasKb = hotfixes.some(h => normKb(h) === kbNorm);
+          if (quickKbMissingOnly) return !hasKb;
+          return hasKb;
+        } else {
+          if (quickKbMissingOnly) return false; // cannot evaluate missing without kb
+        }
+
+        return true;
+      });
+
+      // sorting
+      rows.sort((a,b) => {
+        let va, vb;
+        if (sortKey === "server") {
+          va = (a.computerName || "").toLowerCase();
+          vb = (b.computerName || "").toLowerCase();
+        } else if (sortKey === "seen") {
+          va = a.lastSeenMs || 0;
+          vb = b.lastSeenMs || 0;
+        } else if (sortKey === "hotfix") {
+          va = (Array.isArray(a.hotfixes) ? a.hotfixes.length : 0);
+          vb = (Array.isArray(b.hotfixes) ? b.hotfixes.length : 0);
+        }
+        if (va < vb) return sortDir === "asc" ? -1 : 1;
+        if (va > vb) return sortDir === "asc" ? 1 : -1;
+        return 0;
+      });
+
+      return rows;
+    }
+
+    function render(){
+      const kbNorm = normKb(elKb.value);
+      const rows = applyFilters();
+
+      elFiltered.textContent = rows.length;
+
+      elTbody.innerHTML = rows.map(x => {
+        const hotfixes = Array.isArray(x.hotfixes) ? x.hotfixes : [];
+
+        // KB status
+        let kbStatusHtml = `${dotHtml('b')}<span class="pill">kein Filter</span>`;
+        let kbMissing = false;
+        if (kbNorm) {
+          const has = hotfixes.some(h => normKb(h) === kbNorm);
+          kbMissing = !has;
+          kbStatusHtml = has
+            ? `${dotHtml('g')}<span class="pill">installiert</span>`
+            : `${dotHtml('r')}<span class="pill">fehlt</span>`;
+        }
+
+        // Last seen status
+        const sc = seenColor(x.lastSeenMs);
+        const lastSeenLabel = x.lastSeenMs ? fmtDate(x.lastSeenMs) : '–';
+
+        // Red row if: last seen red OR KB missing (when KB filter is set)
+        const shouldRowBeRed =
+          (sc === 'r') ||
+          (kbNorm && kbMissing);
+
+        const isOpen = expanded.has(x.computerName);
+        const chevron = isOpen ? '▼' : '▶';
+
+        const os = [x.osCaption, x.osVersion].filter(Boolean).join(' • ');
+
+        const mainRow = `
+          <tr class="clickable ${shouldRowBeRed ? 'row-red' : ''}" data-server="${escapeHtml(x.computerName)}">
+            <td class="mono">${chevron} ${escapeHtml(x.computerName)}</td>
+            <td class="mono">${dotHtml(sc)}${escapeHtml(lastSeenLabel)}</td>
+            <td>${escapeHtml(os)}</td>
+            <td class="mono">${escapeHtml(x.buildNumber || '')}</td>
+            <td>${kbStatusHtml}</td>
+            <td class="right mono">${hotfixes.length}</td>
+            <td class="mono">${escapeHtml(fmtIsoString(x.lastReboot))}</td>
+          </tr>
+        `;
+
+        const detailsRow = isOpen ? buildDetailsRow(x, kbNorm) : '';
+        return mainRow + detailsRow;
+      }).join('');
+
+      // click handler
+      elTbody.querySelectorAll('tr.clickable').forEach(tr => {
+        tr.addEventListener('click', () => {
+          const server = tr.getAttribute('data-server');
+          if (!server) return;
+          if (expanded.has(server)) expanded.delete(server);
+          else expanded.add(server);
+          render();
+          wireDetails(server);
+        });
+      });
+
+      // wire details for expanded rows
+      rows.filter(r => expanded.has(r.computerName)).forEach(r => wireDetails(r.computerName));
+
+      updateSortBadges();
+    }
+
+    function exportCsvCurrentView(){
+      const kbNorm = normKb(elKb.value);
+      const rows = applyFilters();
+
+      const header = [
+        "Server","LastSeen","LastSeenStatus","LastReboot","OS","Build",
+        "KBFilter","KBInstalled","HotfixCount"
+      ];
+      const lines = [header.join(",")];
+
+      rows.forEach(x => {
+        const sc = seenColor(x.lastSeenMs);
+        const lastSeen = x.lastSeenMs ? new Date(x.lastSeenMs).toISOString() : "";
+        const os = [x.osCaption, x.osVersion].filter(Boolean).join(" • ");
+        const hotfixes = Array.isArray(x.hotfixes) ? x.hotfixes : [];
+        const kbInstalled = kbNorm ? (hotfixes.some(h => normKb(h) === kbNorm) ? "Yes" : "No") : "";
+
+        const vals = [
+          x.computerName || "",
+          lastSeen,
+          sc,
+          x.lastReboot || "",
+          os,
+          x.buildNumber || "",
+          kbNorm,
+          kbInstalled,
+          String(hotfixes.length)
+        ].map(v => `"${String(v).replaceAll('"','""')}"`);
+
+        lines.push(vals.join(","));
+      });
+
+      const csv = lines.join("\n");
+      const blob = new Blob([csv], {type: "text/csv;charset=utf-8"});
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      const stamp = new Date().toISOString().replaceAll(":","").slice(0,15);
+      a.download = `patch_report_${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // =========================
+    // Folder Access Persistence (best possible "autoload")
+    // Uses IndexedDB to store the directory handle.
+    // =========================
+    const DB_NAME = "patchReportDB";
+    const STORE_NAME = "handles";
+    const HANDLE_KEY = "dirHandle";
+
+    function openDb(){
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME);
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function saveHandle(handle){
+      const db = await openDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        tx.objectStore(STORE_NAME).put(handle, HANDLE_KEY);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function loadHandle(){
+      const db = await openDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const req = tx.objectStore(STORE_NAME).get(HANDLE_KEY);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function canReadHandle(handle){
+      if (!handle) return false;
+      try {
+        const p = await handle.queryPermission({ mode: "read" });
+        if (p === "granted") return true;
+        const r = await handle.requestPermission({ mode: "read" });
+        return r === "granted";
+      } catch {
+        return false;
+      }
+    }
+
+    async function loadFromDirectoryHandle(dir){
+      const fileContains = (elFile.value || '').trim();
+      const items = [];
+
+      for await (const entry of dir.values()) {
+        if (entry.kind !== 'file') continue;
+        if (!entry.name.toLowerCase().endsWith('.json')) continue;
+        if (fileContains && !entry.name.includes(fileContains)) continue;
+
+        try {
+          const file = await entry.getFile();
+          const text = await file.text();
+          const o = JSON.parse(text);
+
+          const hotfixesObj = Array.isArray(o.Hotfixes) ? o.Hotfixes : (o.Hotfixes ? [o.Hotfixes] : []);
+
+          items.push({
+            computerName: o.ComputerName || entry.name.replace('.json',''),
+            lastReboot: o.LastReboot || null,
+            osCaption: o.OS?.Caption || '',
+            osVersion: o.OS?.Version || '',
+            buildNumber: o.OS?.BuildNumber || '',
+            ipAddress: o.IPAddress || null,
+            jsonFile: entry.name,
+            hotfixes: hotfixesObj.map(h => h.HotFixID).filter(Boolean),
+            hotfixDates: hotfixesObj.map(h => h.InstalledOn ? String(h.InstalledOn) : ''),
+            lastSeenMs: file.lastModified || null
+          });
+        } catch (e) {
+          // skip broken json
+        }
+      }
+
+      DATA = items.sort((a,b) => (a.computerName||'').localeCompare(b.computerName||''));
+      expanded = new Set();
+
+      document.getElementById('generatedAt').textContent = new Date().toLocaleString();
+      elAll.textContent = DATA.length;
+      render();
+    }
+
+    async function pickFolder(){
+      if (!window.showDirectoryPicker) {
+        alert("Dein Browser unterstützt das Ordner-Auswählen nicht (File System Access API). Bitte Edge/Chrome aktuell nutzen.");
+        return;
+      }
+
+      const dir = await window.showDirectoryPicker();
+      await saveHandle(dir);
+      elFolderName.textContent = dir.name;
+      await loadFromDirectoryHandle(dir);
+    }
+
+    async function loadLastFolder(){
+      const handle = await loadHandle();
+      if (!handle) {
+        alert("Kein Ordner gespeichert. Bitte einmal 'Ordner auswählen' nutzen.");
+        return;
+      }
+      const ok = await canReadHandle(handle);
+      if (!ok) {
+        alert("Kein Zugriff auf den gespeicherten Ordner (Permission). Bitte 'Ordner auswählen' einmal neu bestätigen.");
+        return;
+      }
+      elFolderName.textContent = handle.name || "(Ordner)";
+      await loadFromDirectoryHandle(handle);
+    }
+
+    // Quick filters
+    function setSeenFilter(val){
+      elSeenFilter.value = val;
+      render();
+    }
+
+    // Sorting
+    function toggleSort(key){
+      if (sortKey === key) {
+        sortDir = (sortDir === "asc") ? "desc" : "asc";
+      } else {
+        sortKey = key;
+        sortDir = "asc";
+      }
+      render();
+    }
+
+    // ----- Event wiring -----
+    document.getElementById('pickFolderBtn').addEventListener('click', pickFolder);
+    document.getElementById('loadLastBtn').addEventListener('click', loadLastFolder);
+    document.getElementById('exportBtn').addEventListener('click', exportCsvCurrentView);
+
+    elServer.addEventListener('input', render);
+    elKb.addEventListener('input', render);
+    elSeenFilter.addEventListener('change', render);
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      elServer.value = '';
+      elKb.value = '';
+      elSeenFilter.value = 'all';
+      quickKbMissingOnly = false;
+      render();
+    });
+
+    // Quick buttons
+    document.getElementById('qAll').addEventListener('click', () => {
+      elSeenFilter.value = 'all';
+      quickKbMissingOnly = false;
+      render();
+    });
+    document.getElementById('qRed').addEventListener('click', () => setSeenFilter('r'));
+    document.getElementById('qYellow').addEventListener('click', () => setSeenFilter('y'));
+    document.getElementById('qGreen').addEventListener('click', () => setSeenFilter('g'));
+    document.getElementById('qKbMissing').addEventListener('click', () => {
+      const kbNorm = normKb(elKb.value);
+      if (!kbNorm) {
+        alert("Bitte erst eine KB im KB-Filter setzen (z.B. KB5071547), dann 'KB fehlt' nutzen.");
+        return;
+      }
+      quickKbMissingOnly = true;
+      render();
+    });
+
+    // Sorting headers
+    document.getElementById('thServer').addEventListener('click', () => toggleSort('server'));
+    document.getElementById('thSeen').addEventListener('click', () => toggleSort('seen'));
+    document.getElementById('thHotfix').addEventListener('click', () => toggleSort('hotfix'));
+
+    // ----- Dark mode toggle + persistence -----
+    const themeBtn = document.getElementById('themeBtn');
+    const savedTheme = localStorage.getItem('patchReportTheme');
+    if (savedTheme === 'dark') document.body.classList.add('dark');
+
+    function updateThemeBtn(){
+      const isDark = document.body.classList.contains('dark');
+      themeBtn.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+    }
+    updateThemeBtn();
+
+    themeBtn.addEventListener('click', () => {
+      document.body.classList.toggle('dark');
+      localStorage.setItem('patchReportTheme', document.body.classList.contains('dark') ? 'dark' : 'light');
+      updateThemeBtn();
+    });
+
+    // Auto-load last folder on start (best possible)
+    window.addEventListener('DOMContentLoaded', async () => {
+      updateSortBadges();
+      try {
+        const handle = await loadHandle();
+        if (handle) {
+          const ok = await canReadHandle(handle);
+          if (ok) {
+            elFolderName.textContent = handle.name || "(Ordner)";
+            await loadFromDirectoryHandle(handle);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    });
+  </script>
+</body>
+</html>
